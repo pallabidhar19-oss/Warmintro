@@ -24,7 +24,13 @@ from pathlib import Path
 
 import streamlit as st
 
-from warmintro.pipeline import LeadResult, process_lead
+from warmintro.pipeline import (
+    LeadResult,
+    build_csv_report,
+    build_markdown_report,
+    compute_impact_summary,
+    process_lead,
+)
 from warmintro.agents import build_drafting_agent, build_qa_agent
 
 st.set_page_config(page_title="WarmIntro", page_icon="✉️", layout="wide")
@@ -135,6 +141,9 @@ if run:
                 f"(QA: {result.qa_verdict}, {result.revisions_used} revision(s))",
                 expanded=True,
             ):
+                if result.hooks:
+                    st.caption("Personalization hooks used:")
+                    st.markdown("\n".join(f"- {h}" for h in result.hooks))
                 st.markdown("**First touch:**")
                 st.info(result.first_touch)
                 st.markdown("**Follow-up:**")
@@ -145,34 +154,45 @@ if run:
         time.sleep(0.1)
 
     progress.progress(1.0, text="Done.")
-    passed = sum(1 for r in results if r.qa_verdict == "PASS")
-    st.success(f"{passed}/{len(results)} leads passed QA and are ready to send.")
+    summary = compute_impact_summary(results)
+    st.success(
+        f"{summary['passed']}/{summary['n']} leads passed QA and are ready to send "
+        f"({summary['revised']}/{summary['n']} needed at least one QA-driven rewrite)."
+    )
 
-    # Build downloadable outputs in memory.
-    md_lines = ["# WarmIntro batch — outreach drafts\n"]
-    md_lines.append(f"**{passed}/{len(results)} leads passed QA.**\n")
-    for r in results:
-        md_lines.append(f"## {r.name} — {r.title}, {r.company}")
-        md_lines.append(f"QA: **{r.qa_verdict}** ({r.revisions_used} revision(s))\n")
-        md_lines.append("**First touch:**")
-        md_lines.append(f"> {r.first_touch}\n")
-        md_lines.append("**Follow-up:**")
-        md_lines.append(f"> {r.follow_up}\n")
-        md_lines.append("---\n")
-    md_report = "\n".join(md_lines)
+    st.subheader("Estimated impact on this batch")
+    icol1, icol2, icol3 = st.columns(3)
+    icol1.metric("Pipeline time", f"{summary['pipeline_seconds']:.0f}s")
+    icol2.metric(
+        "Manual-equivalent time",
+        f"{summary['manual_hours_equivalent']:.1f}h",
+        help=(
+            f"Assumes ~{summary['assumed_manual_minutes_per_lead']} minutes per "
+            "lead to manually research, draft, and self-review a comparably "
+            "personalized message — a common B2B outreach benchmark, not a "
+            "measurement of any specific team's actual speed."
+        ),
+    )
+    if summary["speedup_factor"]:
+        icol3.metric("Estimated speedup", f"{summary['speedup_factor']:.0f}x")
+    st.caption(
+        "The manual-time figure above is a stated assumption (see the ⓘ on "
+        "\"Manual-equivalent time\"), used consistently in the downloadable "
+        "report below — it's shown so the time savings are quantified, not "
+        "just asserted."
+    )
 
-    csv_buf = io.StringIO()
-    writer = csv.writer(csv_buf)
-    writer.writerow(["name", "title", "company", "qa_verdict", "revisions_used", "first_touch", "follow_up"])
-    for r in results:
-        writer.writerow([r.name, r.title, r.company, r.qa_verdict, r.revisions_used, r.first_touch, r.follow_up])
+    # Build downloadable outputs — reuses the exact same report-building code
+    # as the CLI (warmintro/pipeline.py), so the two surfaces never diverge.
+    md_report = build_markdown_report(results)
+    csv_report = build_csv_report(results)
 
     st.subheader("3. Download results")
     dcol1, dcol2 = st.columns(2)
     with dcol1:
         st.download_button("Download drafts.md", md_report, file_name="drafts.md", mime="text/markdown")
     with dcol2:
-        st.download_button("Download drafts.csv", csv_buf.getvalue(), file_name="drafts.csv", mime="text/csv")
+        st.download_button("Download drafts.csv", csv_report, file_name="drafts.csv", mime="text/csv")
 
 st.divider()
 st.caption(
