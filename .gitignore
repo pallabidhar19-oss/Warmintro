@@ -1,6 +1,0 @@
-.env
-__pycache__/
-*.pyc
-output/*.md
-output/*.csv
-.venv/
