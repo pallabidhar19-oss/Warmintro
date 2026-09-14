@@ -17,7 +17,8 @@ Given a CSV of leads (`name, title, company, notes`), WarmIntro:
 1. **Extracts personalization hooks** for each lead from whatever context you already have (a LinkedIn snippet, company news, or just their title/company).
 2. **Drafts** a first-touch message and a short follow-up, following a specific outreach philosophy: warm, role-specific, curiosity-led, never pitchy, never over-promising (see `warmintro/voice_profile.py`).
 3. **QA-reviews** every draft against objective rules (length, banned phrases, no unverifiable claims, ends with a low-effort question) *and* a subjective read on whether it's actually specific to that lead — and kicks it back for a rewrite (up to 2 rounds) if it fails either check.
-4. **Outputs a batch report** (`output/drafts.md` and `output/drafts.csv`) with every message and its QA history, ready to send.
+4. **Outputs a batch report** (`output/drafts.md` and `output/drafts.csv`) with every message, the exact personalization hooks used for it, and its QA history, ready to send.
+5. **Quantifies the impact**, not just the output: every run (CLI or Streamlit) reports pipeline time, QA revision rate, and an estimated time-savings figure against a stated manual-outreach benchmark (~15 minutes per lead to research, draft, and self-review a comparably personalized message) — so the value isn't just "here are some short messages," it's "here's how much of a real, repetitive workload this replaces." See `compute_impact_summary()` in `warmintro/pipeline.py` for the exact math and its stated assumption.
 
 This is designed to be resold as a service: swap `warmintro/voice_profile.py` for a client's own tone, swap the research tool for a real enrichment API (Clay, Apollo, Bright Data), and the rest of the pipeline is unchanged.
 
